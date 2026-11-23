@@ -26,7 +26,10 @@ import { okResponseSchema } from "./common";
 
 export const publicApiTokenPlainSchema = z.string().trim().regex(/^rlt_[A-Za-z0-9_-]{43}$/);
 export const publicApiScopeSchema = z.literal("read");
-export const publicApiScopesSchema = z.array(publicApiScopeSchema).length(1);
+export const publicApiScopesSchema = z.union([
+  z.tuple([publicApiScopeSchema]),
+  z.tuple([publicApiScopeSchema, z.literal("subscriptions:write")]),
+]);
 
 /**
  * Public API token 管理响应只返回 prefix 和元信息。
@@ -50,6 +53,10 @@ export const apiTokensListResponseSchema = apiSuccessResponseSchema(apiTokensLis
 export const apiTokenCreateRequestSchema = z.object({
   name: z.string().trim().min(1).max(80),
 }).strict();
+
+export const dockerApiTokenCreateRequestSchema = apiTokenCreateRequestSchema.extend({
+  allowWrite: z.boolean().optional(),
+});
 
 export const apiTokenCreatePayloadSchema = z.object({
   token: apiTokenSchema,
@@ -174,6 +181,7 @@ export const publicApiDueResponseSchema = apiSuccessResponseSchema(publicApiDueP
 export type ApiToken = z.infer<typeof apiTokenSchema>;
 export type ApiTokensListResponse = z.infer<typeof apiTokensListPayloadSchema>;
 export type ApiTokenCreateRequest = z.infer<typeof apiTokenCreateRequestSchema>;
+export type DockerApiTokenCreateRequest = z.infer<typeof dockerApiTokenCreateRequestSchema>;
 export type ApiTokenCreateResponse = z.infer<typeof apiTokenCreatePayloadSchema>;
 export type PublicApiMeResponse = z.infer<typeof publicApiMePayloadSchema>;
 export type PublicApiSubscriptionsListResponse = z.infer<typeof publicApiSubscriptionsListPayloadSchema>;

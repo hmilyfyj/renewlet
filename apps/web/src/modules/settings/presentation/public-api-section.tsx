@@ -17,8 +17,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useI18n } from "@/i18n/I18nProvider";
 import type { ApiToken } from "@/lib/api/schemas/public-api";
+import { isCloudflareRuntime } from "@/services/runtime";
 import type { SettingsPublicApiController } from "../application/use-public-api-settings-controller";
-import { LoadingButtonContent } from "./settings-shared-controls";
+import { CheckboxSettingRow, LoadingButtonContent } from "./settings-shared-controls";
 import { getSettingsSectionClassName } from "./settings-layout";
 import { ManagerDataBoundary } from "./manager-data-boundary";
 import { SettingsManagerDialogFrame } from "./settings-manager-dialog-frame";
@@ -34,6 +35,7 @@ export function PublicApiSection({ id, className, controller }: PublicApiSection
   const { t, formatDateTime } = useI18n();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState("");
+  const [allowWrite, setAllowWrite] = useState(false);
   const [tokenToDelete, setTokenToDelete] = useState<ApiToken | null>(null);
   const plainTokenInputRef = useRef<HTMLInputElement>(null);
   const tokenNameInputRef = useRef<HTMLInputElement>(null);
@@ -51,8 +53,11 @@ export function PublicApiSection({ id, className, controller }: PublicApiSection
   const handleCreate = async () => {
     const trimmed = name.trim();
     if (!trimmed || busy) return;
-    const created = await controller.createToken(trimmed);
-    if (created) setName("");
+    const created = await controller.createToken({ name: trimmed, ...(allowWrite && !isCloudflareRuntime ? { allowWrite: true } : {}) });
+    if (created) {
+      setName("");
+      setAllowWrite(false);
+    }
   };
   const formatTokenTime = (value: string | null | undefined, fallback: string) => {
     if (!value) return fallback;
@@ -162,6 +167,15 @@ export function PublicApiSection({ id, className, controller }: PublicApiSection
                   </Button>
                 </FormFieldRowAction>
               </FormFieldRow>
+              {!isCloudflareRuntime ? (
+                <CheckboxSettingRow
+                  id="public-api-token-allow-write"
+                  checked={allowWrite}
+                  onCheckedChange={setAllowWrite}
+                  disabled={busy}
+                  label={t("settings.publicApiAllowWrite")}
+                />
+              ) : null}
 
               <div className="grid gap-3 border-t border-border pt-4">
                 <ManagerDataBoundary state={controller.tokens}>

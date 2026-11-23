@@ -1,6 +1,6 @@
 package main
 
-// public_api.go 实现通用只读 Public API。
+// public_api.go 实现 Public API。
 //
 // 架构位置：
 //   - 登录态 `/api/app/api-tokens` 只负责 token 生命周期管理。
@@ -14,6 +14,7 @@ import (
 	"errors"
 	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -29,6 +30,9 @@ const (
 	publicAPIDueDefaultDays    = 30
 	publicAPIDueMaxDays        = 366
 	publicAPIDueResultLimit    = 500
+
+	publicAPIReadScope              = "read"
+	publicAPISubscriptionWriteScope = "subscriptions:write"
 )
 
 var publicAPITokenRe = regexp.MustCompile(`^rlt_[A-Za-z0-9_-]{43}$`)
@@ -49,7 +53,8 @@ type apiTokensListResponse struct {
 }
 
 type apiTokenCreateRequest struct {
-	Name string `json:"name"`
+	Name       string `json:"name"`
+	AllowWrite bool   `json:"allowWrite"`
 }
 
 func (r *apiTokenCreateRequest) Validate(locale appLocale) error {
@@ -66,7 +71,7 @@ type apiTokenCreateResponse struct {
 }
 
 type publicAPIAuthContext struct {
-	UserID string
+	User   *core.Record
 	Scopes []string
 }
 
@@ -145,7 +150,11 @@ func handleAPITokensList(app core.App, e *core.RequestEvent) error {
 	}
 	tokens := make([]apiTokenDTO, 0, len(rows))
 	for _, row := range rows {
-		tokens = append(tokens, apiTokenDTOFromRecord(row))
+		token, err := apiTokenDTOFromRecord(row)
+		if err != nil {
+			return e.InternalServerError(serverText(requestLocale(e.Request), "common.internalError"), err)
+		}
+		tokens = append(tokens, token)
 	}
 	setPublicAPIHeaders(e.Response.Header())
 	return apiSuccessJSON(e, http.StatusOK, apiTokensListResponse{Tokens: tokens})
@@ -157,14 +166,18 @@ func handleAPITokenCreate(app core.App, e *core.RequestEvent) error {
 	if err != nil {
 		return e.BadRequestError(validationErrorMessage(locale, "common.invalidRequestBody", err), err)
 	}
-	record, plainToken, err := createAPITokenRecord(app, e.Auth.Id, body.Name)
+	record, plainToken, err := createAPITokenRecord(app, e.Auth.Id, body)
+	if err != nil {
+		return e.InternalServerError(serverText(locale, "common.internalError"), err)
+	}
+	token, err := apiTokenDTOFromRecord(record)
 	if err != nil {
 		return e.InternalServerError(serverText(locale, "common.internalError"), err)
 	}
 	// 明文 token 只在创建响应出现一次；列表和数据库都只保留 prefix/hash。
 	setPublicAPIHeaders(e.Response.Header())
 	return apiSuccessJSON(e, http.StatusCreated, apiTokenCreateResponse{
-		Token:      apiTokenDTOFromRecord(record),
+		Token:      token,
 		PlainToken: plainToken,
 	})
 }
@@ -202,7 +215,7 @@ func handlePublicAPISubscriptionsList(app core.App, e *core.RequestEvent) error 
 	if err != nil {
 		return e.BadRequestError(serverText(locale, "common.invalidRequestParameters"), err)
 	}
-	response, err := publicAPISubscriptionsForUser(app, auth.UserID, limit, e.Request.URL.Query().Get("cursor"))
+	response, err := publicAPISubscriptionsForUser(app, auth.User.Id, limit, e.Request.URL.Query().Get("cursor"))
 	if err != nil {
 		if errors.Is(err, errPublicAPIInvalidCursor) {
 			return e.BadRequestError(serverText(locale, "common.invalidRequestParameters"), err)
@@ -218,7 +231,7 @@ func handlePublicAPISubscriptionDetail(app core.App, e *core.RequestEvent) error
 	if err != nil {
 		return publicAPIAuthError(e, err)
 	}
-	record, err := findSubscriptionForPublicAPI(app, auth.UserID, strings.TrimSpace(e.Request.PathValue("id")))
+	record, err := findSubscriptionForPublicAPI(app, auth.User.Id, strings.TrimSpace(e.Request.PathValue("id")))
 	if err != nil {
 		return e.NotFoundError(serverText(requestLocale(e.Request), "subscription.notFound"), err)
 	}
@@ -233,7 +246,7 @@ func handlePublicAPIStatus(app core.App, e *core.RequestEvent) error {
 	if err != nil {
 		return publicAPIAuthError(e, err)
 	}
-	response, err := publicAPIStatusForUser(app, auth.UserID)
+	response, err := publicAPIStatusForUser(app, auth.User.Id)
 	if err != nil {
 		return e.InternalServerError(serverText(requestLocale(e.Request), "common.internalError"), err)
 	}
@@ -251,7 +264,7 @@ func handlePublicAPIDue(app core.App, e *core.RequestEvent) error {
 	if err != nil {
 		return e.BadRequestError(serverText(locale, "common.invalidRequestParameters"), err)
 	}
-	response, err := publicAPIDueForUser(app, auth.UserID, days)
+	response, err := publicAPIDueForUser(app, auth.User.Id, days)
 	if err != nil {
 		return e.InternalServerError(serverText(locale, "common.internalError"), err)
 	}
@@ -374,10 +387,14 @@ func publicAPINextDueForUserWithSettings(app core.App, userID string, settings a
 	return &items[0], nil
 }
 
-func createAPITokenRecord(app core.App, userID string, name string) (*core.Record, string, error) {
+func createAPITokenRecord(app core.App, userID string, body apiTokenCreateRequest) (*core.Record, string, error) {
 	collection, err := app.FindCollectionByNameOrId("api_tokens")
 	if err != nil {
 		return nil, "", err
+	}
+	scopes := []string{publicAPIReadScope}
+	if body.AllowWrite {
+		scopes = append(scopes, publicAPISubscriptionWriteScope)
 	}
 	for attempt := 0; attempt < 3; attempt++ {
 		plainToken, err := newPlainAPIToken()
@@ -386,10 +403,10 @@ func createAPITokenRecord(app core.App, userID string, name string) (*core.Recor
 		}
 		record := core.NewRecord(collection)
 		record.Set("user", userID)
-		record.Set("name", name)
+		record.Set("name", body.Name)
 		record.Set("tokenHash", hashPublicAPIToken(plainToken))
 		record.Set("tokenPrefix", plainToken[:publicAPITokenPrefixLength])
-		record.Set("scopes", []string{"read"})
+		record.Set("scopes", scopes)
 		record.Set("lastUsedAt", "")
 		if err := app.Save(record); err != nil {
 			if attempt < 2 && strings.Contains(err.Error(), "idx_api_tokens_token_hash_unique") {
@@ -429,7 +446,7 @@ func authenticatePublicAPIRequest(app core.App, e *core.RequestEvent) (publicAPI
 		return publicAPIAuthContext{}, sql.ErrNoRows
 	}
 	scopes, err := apiTokenScopesFromValue(record.Get("scopes"))
-	if err != nil || !apiTokenHasReadScope(scopes) {
+	if err != nil {
 		return publicAPIAuthContext{}, sql.ErrNoRows
 	}
 	userID := record.GetString("user")
@@ -445,7 +462,22 @@ func authenticatePublicAPIRequest(app core.App, e *core.RequestEvent) (publicAPI
 			return publicAPIAuthContext{}, err
 		}
 	}
-	return publicAPIAuthContext{UserID: userID, Scopes: []string{"read"}}, nil
+	return publicAPIAuthContext{User: user, Scopes: scopes}, nil
+}
+
+func publicAPISubscriptionWriter(app core.App, handler func(core.App, *core.RequestEvent, bool) error) func(*core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		setPublicAPIHeaders(e.Response.Header())
+		auth, err := authenticatePublicAPIRequest(app, e)
+		if err != nil {
+			return publicAPIAuthError(e, err)
+		}
+		if !slices.Contains(auth.Scopes, publicAPISubscriptionWriteScope) {
+			return e.ForbiddenError("", nil)
+		}
+		e.Auth = auth.User
+		return handler(app, e, true)
+	}
 }
 
 func publicAPIAuthError(e *core.RequestEvent, err error) error {
@@ -509,7 +541,7 @@ func publicAPISubscriptionFromRecord(record *core.Record) publicAPISubscriptionR
 		out.CreatedAt = record.GetDateTime("created").Time().UTC().Format(time.RFC3339Nano)
 	}
 	if !record.GetDateTime("updated").IsZero() {
-		out.UpdatedAt = record.GetDateTime("updated").Time().UTC().Format(time.RFC3339Nano)
+		out.UpdatedAt = subscriptionRecordVersion(record)
 	}
 	return out
 }
@@ -554,15 +586,19 @@ func publicAPIDueDate(row *core.Record, dueType string) string {
 	return row.GetString("nextBillingDate")
 }
 
-func apiTokenDTOFromRecord(record *core.Record) apiTokenDTO {
+func apiTokenDTOFromRecord(record *core.Record) (apiTokenDTO, error) {
+	scopes, err := apiTokenScopesFromValue(record.Get("scopes"))
+	if err != nil {
+		return apiTokenDTO{}, err
+	}
 	return apiTokenDTO{
 		ID:          record.Id,
 		Name:        record.GetString("name"),
 		TokenPrefix: record.GetString("tokenPrefix"),
-		Scopes:      []string{"read"},
+		Scopes:      scopes,
 		CreatedAt:   recordTimeString(record, "created"),
 		LastUsedAt:  optionalRecordString(record, "lastUsedAt"),
-	}
+	}, nil
 }
 
 func optionalRecordString(record *core.Record, field string) *string {
@@ -575,23 +611,17 @@ func optionalRecordString(record *core.Record, field string) *string {
 
 func apiTokenScopesFromValue(value interface{}) ([]string, error) {
 	data, err := jsonBytesFromValue(value)
-	if err != nil || len(strings.TrimSpace(string(data))) == 0 {
+	if err != nil {
 		return nil, err
 	}
 	var scopes []string
 	if err := json.Unmarshal(data, &scopes); err != nil {
 		return nil, err
 	}
-	return scopes, nil
-}
-
-func apiTokenHasReadScope(scopes []string) bool {
-	for _, scope := range scopes {
-		if scope == "read" {
-			return true
-		}
+	if !slices.Equal(scopes, []string{publicAPIReadScope}) && !slices.Equal(scopes, []string{publicAPIReadScope, publicAPISubscriptionWriteScope}) {
+		return nil, errors.New("API_TOKEN_SCOPES_INVALID")
 	}
-	return false
+	return scopes, nil
 }
 
 func newPlainAPIToken() (string, error) {

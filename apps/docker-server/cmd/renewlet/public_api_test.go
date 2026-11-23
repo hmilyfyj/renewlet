@@ -5,7 +5,9 @@ package main
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -263,6 +265,74 @@ func TestPublicAPITokenLifecycleAndReadRoutes(t *testing.T) {
 	if deletedRes.Code != http.StatusUnauthorized {
 		t.Fatalf("expected deleted token to be rejected, got %d: %s", deletedRes.Code, deletedRes.Body.String())
 	}
+}
+
+func TestPublicAPISubscriptionWritesRequireOptInAndOwnership(t *testing.T) {
+	app := newSchemaTestApp(t)
+	if err := ensureSchema(app); err != nil {
+		t.Fatal(err)
+	}
+	registerRecordHooks(app)
+	_, session := createRouteTestUser(t, app, "public-write-owner")
+	_, otherSession := createRouteTestUser(t, app, "public-write-other")
+	request := func(method, path, body, auth string, status int) *httptest.ResponseRecorder {
+		t.Helper()
+		response := serveTestRequest(t, app, method, path, body, auth)
+		if response.Code != status {
+			t.Fatalf("%s %s: expected %d, got %d: %s", method, path, status, response.Code, response.Body.String())
+		}
+		return response
+	}
+	createToken := func(body, session string, scopes []string) apiTokenCreateResponse {
+		t.Helper()
+		response := request(http.MethodPost, "/api/app/api-tokens", body, session, http.StatusCreated)
+		token := decodeAPISuccessDataForTest[apiTokenCreateResponse](t, response.Body.Bytes())
+		if !slices.Equal(token.Token.Scopes, scopes) {
+			t.Fatalf("expected token scopes %v, got %v", scopes, token.Token.Scopes)
+		}
+		return token
+	}
+	readOnly := "Bearer " + createToken(`{"name":"Read only"}`, session, []string{"read"}).PlainToken
+	writeScopes := []string{"read", "subscriptions:write"}
+	writer := createToken(`{"name":"Automation","allowWrite":true}`, session, writeScopes)
+	writerAuth := "Bearer " + writer.PlainToken
+	otherWriter := "Bearer " + createToken(`{"name":"Other","allowWrite":true}`, otherSession, writeScopes).PlainToken
+	me := request(http.MethodGet, "/api/public/v1/me", "", writerAuth, http.StatusOK)
+	if scopes := decodeAPISuccessDataForTest[publicAPIMeResponse](t, me.Body.Bytes()).Scopes; !slices.Equal(scopes, writeScopes) {
+		t.Fatalf("unexpected /me scopes: %v", scopes)
+	}
+
+	const collectionPath = "/api/public/v1/subscriptions"
+	const createBody = `{"name":"Automation Plan","price":"12.50","currency":"USD","billingCycle":"monthly","category":"productivity","status":"active","nextBillingDate":"2027-01-15","autoCalculateNextBillingDate":false,"reminderDays":3,"repeatReminderEnabled":false,"repeatReminderInterval":"1h","repeatReminderWindow":"72h"}`
+	request(http.MethodPost, collectionPath, createBody, session, http.StatusUnauthorized)
+	request(http.MethodPost, collectionPath, createBody, readOnly, http.StatusForbidden)
+	request(http.MethodPost, collectionPath, `{"name":"Missing required fields"}`, writerAuth, http.StatusBadRequest)
+	created := request(http.MethodPost, collectionPath, createBody, writerAuth, http.StatusCreated)
+	row := decodeAPISuccessDataForTest[publicAPISubscriptionEnvelope](t, created.Body.Bytes()).Subscription
+	if row.ID == "" || row.Name != "Automation Plan" || row.Price != "12.5" {
+		t.Fatalf("unexpected created subscription: %#v", row)
+	}
+
+	detailPath := collectionPath + "/" + row.ID
+	const patch = `{"name":"Renamed Plan"}`
+	request(http.MethodPatch, detailPath, patch, readOnly, http.StatusForbidden)
+	request(http.MethodPatch, detailPath, patch, otherWriter, http.StatusNotFound)
+	request(http.MethodPatch, detailPath, `{"name":"Invalid","user":"someone-else"}`, writerAuth, http.StatusBadRequest)
+	request(http.MethodPatch, detailPath, `{"publicHidden":true}`, writerAuth, http.StatusBadRequest)
+	updated := request(http.MethodPatch, detailPath, patch, writerAuth, http.StatusOK)
+	updatedRow := decodeAPISuccessDataForTest[publicAPISubscriptionEnvelope](t, updated.Body.Bytes()).Subscription
+	if updatedRow.Name != "Renamed Plan" || updatedRow.Price != "12.5" {
+		t.Fatalf("unexpected updated subscription: %#v", updatedRow)
+	}
+	read := request(http.MethodGet, detailPath, "", readOnly, http.StatusOK)
+	if saved := decodeAPISuccessDataForTest[publicAPISubscriptionEnvelope](t, read.Body.Bytes()).Subscription; saved.Name != updatedRow.Name {
+		t.Fatalf("expected update to persist, got %#v", saved)
+	}
+	request(http.MethodPatch, detailPath, `{"status":"paused"}`, writerAuth, http.StatusBadRequest)
+	request(http.MethodPatch, detailPath, `{"status":"paused","expectedUpdatedAt":"`+updatedRow.UpdatedAt+`"}`, writerAuth, http.StatusOK)
+	request(http.MethodDelete, detailPath, "", writerAuth, http.StatusMethodNotAllowed)
+	request(http.MethodDelete, "/api/app/api-tokens/"+writer.Token.ID, "", session, http.StatusOK)
+	request(http.MethodPatch, detailPath, patch, writerAuth, http.StatusUnauthorized)
 }
 
 func publicAPITestDueContains(items []publicAPIDueItem, subscriptionID string, dueType string, dueDate string) bool {

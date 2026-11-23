@@ -33,11 +33,9 @@ func normalizeAPITokenRecord(record *core.Record) error {
 		return errors.New("API_TOKEN_PREFIX_INVALID")
 	}
 	record.Set("tokenPrefix", tokenPrefix)
-	scopes, err := apiTokenScopesFromValue(record.Get("scopes"))
-	if err != nil || len(scopes) != 1 || scopes[0] != "read" {
+	if _, err := apiTokenScopesFromValue(record.Get("scopes")); err != nil {
 		return errors.New("API_TOKEN_SCOPES_INVALID")
 	}
-	record.Set("scopes", []string{"read"})
 	value := strings.TrimSpace(record.GetString("lastUsedAt"))
 	if value != "" {
 		if _, err := time.Parse(time.RFC3339Nano, value); err != nil {

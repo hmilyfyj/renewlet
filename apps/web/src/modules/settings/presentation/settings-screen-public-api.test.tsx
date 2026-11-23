@@ -84,9 +84,17 @@ describe("SettingsScreen Public API and Telegram commands", () => {
       within(managementDialog).getByRole("button", { name: "创建 token" }),
     );
 
+    const writeAccess = within(managementDialog).getByRole("checkbox", { name: "允许写入订阅" });
+    expect(writeAccess).not.toBeChecked();
     await user.type(tokenNameInput, "Shortcuts");
     await user.click(within(managementDialog).getByRole("button", { name: "创建 token" }));
-    expect(controller.publicApi.createToken).toHaveBeenCalledWith("Shortcuts");
+    expect(controller.publicApi.createToken).toHaveBeenCalledWith({ name: "Shortcuts" });
+
+    await user.type(tokenNameInput, "Automation");
+    await user.click(writeAccess);
+    await user.click(within(managementDialog).getByRole("button", { name: "创建 token" }));
+    expect(controller.publicApi.createToken).toHaveBeenLastCalledWith({ name: "Automation", allowWrite: true });
+    expect(writeAccess).not.toBeChecked();
 
     await user.click(within(managementDialog).getByRole("button", { name: "复制 token" }));
     expect(controller.publicApi.copyPlainToken).toHaveBeenCalled();

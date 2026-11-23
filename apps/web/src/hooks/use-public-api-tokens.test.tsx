@@ -62,9 +62,10 @@ describe("use-public-api-tokens", () => {
     const { result } = renderHook(() => useCreatePublicApiToken(), { wrapper: createWrapper(queryClient) });
 
     await act(async () => {
-      await result.current.mutateAsync("Shortcuts");
+      await result.current.mutateAsync({ name: "Shortcuts", allowWrite: true });
     });
 
+    expect(publicApiService.createToken).toHaveBeenCalledWith({ name: "Shortcuts", allowWrite: true });
     expect(queryClient.getQueryData<ApiToken[]>(QUERY_KEY)).toEqual([created, existing]);
     expect(JSON.stringify(queryClient.getQueryData(QUERY_KEY))).not.toContain("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNO12");
   });

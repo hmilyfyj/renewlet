@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { DockerApiTokenCreateRequest } from "@/lib/api/schemas/public-api";
 import { publicApiService } from "@/services/public-api-service";
 
 const PUBLIC_API_TOKENS_QUERY_KEY = ["public-api-tokens"] as const;
@@ -15,7 +16,7 @@ export function usePublicApiTokens() {
 export function useCreatePublicApiToken() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) => publicApiService.createToken({ name }),
+    mutationFn: (body: DockerApiTokenCreateRequest) => publicApiService.createToken(body),
     onSuccess: (response) => {
       queryClient.setQueryData(PUBLIC_API_TOKENS_QUERY_KEY, (current: Awaited<ReturnType<typeof publicApiService.listTokens>> | undefined) => {
         const tokens = current ?? [];

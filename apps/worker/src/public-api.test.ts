@@ -355,6 +355,11 @@ describe("Cloudflare Public API", () => {
       body: JSON.stringify({ name: "Telegram", plainToken: "leak" }),
     }), env)).rejects.toMatchObject({ status: 400 });
 
+    await expect(createApiToken(authorizedRequest("/api/app/api-tokens", {
+      method: "POST",
+      body: JSON.stringify({ name: "Automation", allowWrite: true }),
+    }), env)).rejects.toMatchObject({ status: 400 });
+
     const createResponse = await createApiToken(authorizedRequest("/api/app/api-tokens", {
       method: "POST",
       body: JSON.stringify({ name: "Telegram Bot" }),

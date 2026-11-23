@@ -4,7 +4,7 @@
   "info": {
     "title": "Renewlet Public API",
     "version": "1.0.0",
-    "description": "Read-only API for subscriptions, status summaries, and upcoming due items. All endpoints require an `Authorization: Bearer rlt_*` token created in Renewlet settings.",
+    "description": "Read subscriptions, status summaries, and upcoming due items. Docker deployments also support opt-in subscription writes. All endpoints require an `Authorization: Bearer rlt_*` token created in Renewlet settings.",
     "license": {
       "name": "MIT",
       "url": "https://github.com/zhiyingzzhou/renewlet/blob/main/LICENSE"
@@ -19,7 +19,7 @@
   "tags": [
     {
       "name": "Public API",
-      "description": "Read-only Renewlet Public API."
+      "description": "Renewlet Public API."
     }
   ],
   "paths": {
@@ -30,7 +30,7 @@
         ],
         "operationId": "getPublicApiMe",
         "summary": "Inspect the current Public API token",
-        "description": "Returns the read scope attached to the bearer token. It does not expose the token owner or token hash.",
+        "description": "Returns the scopes attached to the bearer token. It does not expose the token owner or token hash.",
         "security": [
           {
             "PublicApiBearer": []
@@ -175,7 +175,7 @@
             }
           },
           "400": {
-            "description": "Invalid query parameters.",
+            "description": "Invalid request parameters or body.",
             "content": {
               "application/json": {
                 "schema": {
@@ -207,6 +207,152 @@
                       "error": {
                         "code": "UNAUTHORIZED",
                         "message": "Unauthorized"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Public API"
+        ],
+        "operationId": "createPublicApiSubscription",
+        "summary": "Create a subscription (Docker only)",
+        "description": "Docker only. Requires a token created with Allow subscription writes (`subscriptions:write`). Creates a subscription for the token owner using the same validation as the web app.",
+        "security": [
+          {
+            "PublicApiBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicApiSubscriptionCreateBody"
+              },
+              "example": {
+                "name": "GitHub",
+                "price": "12",
+                "currency": "USD",
+                "billingCycle": "monthly",
+                "category": "developer_tools",
+                "status": "active",
+                "nextBillingDate": "2026-09-01",
+                "autoCalculateNextBillingDate": false,
+                "reminderDays": 3,
+                "repeatReminderEnabled": false,
+                "repeatReminderInterval": "1h",
+                "repeatReminderWindow": "72h"
+              }
+            }
+          }
+        },
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiSubscriptionResponse"
+                },
+                "examples": {
+                  "success": {
+                    "value": {
+                      "ok": true,
+                      "data": {
+                        "subscription": {
+                          "id": "sub_01HZY7YQ7EXAMPLE",
+                          "name": "GitHub",
+                          "price": "12",
+                          "currency": "USD",
+                          "balance": "50.123456",
+                          "balanceCurrency": "EUR",
+                          "billingCycle": "monthly",
+                          "category": "developer_tools",
+                          "status": "active",
+                          "pinned": false,
+                          "publicHidden": false,
+                          "startDate": null,
+                          "nextBillingDate": "2026-09-01",
+                          "autoRenew": false,
+                          "autoCalculateNextBillingDate": false,
+                          "tags": [
+                            "dev"
+                          ],
+                          "reminderDays": 3,
+                          "repeatReminderEnabled": false,
+                          "repeatReminderInterval": "1h",
+                          "repeatReminderWindow": "72h",
+                          "extra": {},
+                          "createdAt": "2026-08-01T00:00:00.000Z",
+                          "updatedAt": "2026-08-01T00:00:00.000Z"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters or body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorResponse"
+                },
+                "examples": {
+                  "error": {
+                    "value": {
+                      "error": {
+                        "code": "INVALID_QUERY",
+                        "message": "Invalid request parameters"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, malformed, deleted, or unauthorized Public API token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorResponse"
+                },
+                "examples": {
+                  "error": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Unauthorized"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token does not allow subscription writes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorResponse"
+                },
+                "examples": {
+                  "error": {
+                    "value": {
+                      "error": {
+                        "code": "FORBIDDEN",
+                        "message": "The token does not allow subscription writes"
                       }
                     }
                   }
@@ -325,6 +471,196 @@
                       "error": {
                         "code": "NOT_FOUND",
                         "message": "Not found"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Public API"
+        ],
+        "operationId": "updatePublicApiSubscription",
+        "summary": "Edit a subscription (Docker only)",
+        "description": "Docker only. Requires `subscriptions:write`. Send only the fields to change. To change `status`, include `expectedUpdatedAt` from the current subscription's `updatedAt`. Public visibility cannot be changed through this API.",
+        "security": [
+          {
+            "PublicApiBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicApiSubscriptionUpdateBody"
+              },
+              "example": {
+                "notes": "Managed by automation"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Subscription id from the list endpoint.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "description": "Renewlet subscription id returned by the subscriptions list endpoint."
+            },
+            "example": "sub_01HZY7YQ7EXAMPLE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiSubscriptionResponse"
+                },
+                "examples": {
+                  "success": {
+                    "value": {
+                      "ok": true,
+                      "data": {
+                        "subscription": {
+                          "id": "sub_01HZY7YQ7EXAMPLE",
+                          "name": "GitHub",
+                          "price": "12",
+                          "currency": "USD",
+                          "balance": "50.123456",
+                          "balanceCurrency": "EUR",
+                          "billingCycle": "monthly",
+                          "category": "developer_tools",
+                          "status": "active",
+                          "pinned": false,
+                          "publicHidden": false,
+                          "startDate": "2026-01-01",
+                          "nextBillingDate": "2026-09-01",
+                          "autoRenew": false,
+                          "autoCalculateNextBillingDate": true,
+                          "tags": [
+                            "dev"
+                          ],
+                          "reminderDays": 3,
+                          "repeatReminderEnabled": false,
+                          "repeatReminderInterval": "1h",
+                          "repeatReminderWindow": "72h",
+                          "extra": {},
+                          "createdAt": "2026-08-01T00:00:00.000Z",
+                          "updatedAt": "2026-08-01T00:00:00.000Z",
+                          "notes": "Managed by automation"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters or body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorResponse"
+                },
+                "examples": {
+                  "error": {
+                    "value": {
+                      "error": {
+                        "code": "INVALID_QUERY",
+                        "message": "Invalid request parameters"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, malformed, deleted, or unauthorized Public API token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorResponse"
+                },
+                "examples": {
+                  "error": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Unauthorized"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token does not allow subscription writes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorResponse"
+                },
+                "examples": {
+                  "error": {
+                    "value": {
+                      "error": {
+                        "code": "FORBIDDEN",
+                        "message": "The token does not allow subscription writes"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource does not exist for the token owner.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorResponse"
+                },
+                "examples": {
+                  "error": {
+                    "value": {
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "Not found"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The subscription changed since the supplied version was read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorResponse"
+                },
+                "examples": {
+                  "error": {
+                    "value": {
+                      "error": {
+                        "code": "SUBSCRIPTION_EDIT_CONFLICT",
+                        "message": "Subscription changed"
                       }
                     }
                   }
@@ -485,7 +821,7 @@
             }
           },
           "400": {
-            "description": "Invalid query parameters.",
+            "description": "Invalid request parameters or body.",
             "content": {
               "application/json": {
                 "schema": {
@@ -579,13 +915,36 @@
             "type": "object",
             "properties": {
               "scopes": {
-                "minItems": 1,
-                "maxItems": 1,
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "const": "read"
-                }
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "string",
+                        "const": "read"
+                      }
+                    ],
+                    "items": false,
+                    "minItems": 1,
+                    "maxItems": 1
+                  },
+                  {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "string",
+                        "const": "read"
+                      },
+                      {
+                        "type": "string",
+                        "const": "subscriptions:write"
+                      }
+                    ],
+                    "items": false,
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                ]
               }
             },
             "required": [
@@ -1643,6 +2002,720 @@
           "ok",
           "data"
         ],
+        "additionalProperties": false
+      },
+      "PublicApiSubscriptionCreateBody": {
+        "type": "object",
+        "properties": {
+          "balance": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?:(?:0|[1-9][0-9]{0,8})(?:\\.[0-9]{0,5}[1-9])?|1000000000)$",
+                "description": "Canonical Renewlet decimal money string. Non-negative, max 1000000000, up to 6 fractional digits, no scientific notation.",
+                "example": "12.34"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "balanceCurrency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "logo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "price": {
+            "type": "string",
+            "pattern": "^(?:(?:0|[1-9][0-9]{0,8})(?:\\.[0-9]{0,5}[1-9])?|1000000000)$",
+            "description": "Canonical Renewlet decimal money string. Non-negative, max 1000000000, up to 6 fractional digits, no scientific notation.",
+            "example": "12.34"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          },
+          "billingCycle": {
+            "type": "string",
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "semi-annual",
+              "annual",
+              "custom",
+              "one-time"
+            ]
+          },
+          "customDays": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "customCycleUnit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "day",
+                  "week",
+                  "month",
+                  "year"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "oneTimeTermCount": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 3650
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "oneTimeTermUnit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "day",
+                  "week",
+                  "month",
+                  "year"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "category": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "trial",
+              "active",
+              "expired",
+              "paused",
+              "cancelled"
+            ]
+          },
+          "pinned": {
+            "default": false,
+            "type": "boolean"
+          },
+          "paymentMethod": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "startDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "description": "日期字符串：必须是 YYYY-MM-DD，不接受带时间或时区的 ISO datetime。"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nextBillingDate": {
+            "type": "string",
+            "minLength": 1,
+            "description": "日期字符串：必须是 YYYY-MM-DD，不接受带时间或时区的 ISO datetime。"
+          },
+          "autoRenew": {
+            "default": false,
+            "type": "boolean"
+          },
+          "autoCalculateNextBillingDate": {
+            "type": "boolean"
+          },
+          "trialEndDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "description": "日期字符串：必须是 YYYY-MM-DD，不接受带时间或时区的 ISO datetime。"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "reminderDays": {
+            "type": "integer",
+            "minimum": -2,
+            "maximum": 3650
+          },
+          "repeatReminderEnabled": {
+            "type": "boolean"
+          },
+          "repeatReminderInterval": {
+            "type": "string",
+            "enum": [
+              "1h",
+              "3h",
+              "6h",
+              "12h",
+              "24h"
+            ]
+          },
+          "repeatReminderWindow": {
+            "type": "string",
+            "enum": [
+              "24h",
+              "48h",
+              "72h",
+              "full"
+            ]
+          },
+          "costSharing": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "splitMode": {
+                    "type": "string",
+                    "enum": [
+                      "equal",
+                      "custom"
+                    ]
+                  },
+                  "members": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 80
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 80
+                        },
+                        "note": {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        "joinedDate": {
+                          "type": "string",
+                          "format": "date",
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "description": "Renewlet date-only string in YYYY-MM-DD format. No time or time zone.",
+                          "example": "2026-01-01"
+                        },
+                        "currency": {
+                          "type": "string",
+                          "pattern": "^[A-Z]{3}$"
+                        },
+                        "customAmount": {
+                          "type": "string",
+                          "pattern": "^(?:(?:0|[1-9][0-9]{0,8})(?:\\.[0-9]{0,5}[1-9])?|1000000000)$",
+                          "description": "Canonical Renewlet decimal money string. Non-negative, max 1000000000, up to 6 fractional digits, no scientific notation.",
+                          "example": "12.34"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "collectionReminder": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "reminderDays": {
+                        "type": "integer",
+                        "minimum": -1,
+                        "maximum": 3650
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "reminderDays"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "enabled",
+                  "splitMode",
+                  "members"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "extra": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "name",
+          "price",
+          "currency",
+          "billingCycle",
+          "category",
+          "status",
+          "nextBillingDate",
+          "autoCalculateNextBillingDate",
+          "reminderDays",
+          "repeatReminderEnabled",
+          "repeatReminderInterval",
+          "repeatReminderWindow"
+        ],
+        "additionalProperties": false
+      },
+      "PublicApiSubscriptionUpdateBody": {
+        "type": "object",
+        "properties": {
+          "balance": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?:(?:0|[1-9][0-9]{0,8})(?:\\.[0-9]{0,5}[1-9])?|1000000000)$",
+                "description": "Canonical Renewlet decimal money string. Non-negative, max 1000000000, up to 6 fractional digits, no scientific notation.",
+                "example": "12.34"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "balanceCurrency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "logo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "price": {
+            "type": "string",
+            "pattern": "^(?:(?:0|[1-9][0-9]{0,8})(?:\\.[0-9]{0,5}[1-9])?|1000000000)$",
+            "description": "Canonical Renewlet decimal money string. Non-negative, max 1000000000, up to 6 fractional digits, no scientific notation.",
+            "example": "12.34"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          },
+          "billingCycle": {
+            "type": "string",
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "semi-annual",
+              "annual",
+              "custom",
+              "one-time"
+            ]
+          },
+          "customDays": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "customCycleUnit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "day",
+                  "week",
+                  "month",
+                  "year"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "oneTimeTermCount": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 3650
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "oneTimeTermUnit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "day",
+                  "week",
+                  "month",
+                  "year"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "category": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "trial",
+              "active",
+              "expired",
+              "paused",
+              "cancelled"
+            ]
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "paymentMethod": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "startDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "description": "日期字符串：必须是 YYYY-MM-DD，不接受带时间或时区的 ISO datetime。"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nextBillingDate": {
+            "type": "string",
+            "minLength": 1,
+            "description": "日期字符串：必须是 YYYY-MM-DD，不接受带时间或时区的 ISO datetime。"
+          },
+          "autoRenew": {
+            "type": "boolean"
+          },
+          "autoCalculateNextBillingDate": {
+            "type": "boolean"
+          },
+          "trialEndDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "description": "日期字符串：必须是 YYYY-MM-DD，不接受带时间或时区的 ISO datetime。"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "reminderDays": {
+            "type": "integer",
+            "minimum": -2,
+            "maximum": 3650
+          },
+          "repeatReminderEnabled": {
+            "type": "boolean"
+          },
+          "repeatReminderInterval": {
+            "type": "string",
+            "enum": [
+              "1h",
+              "3h",
+              "6h",
+              "12h",
+              "24h"
+            ]
+          },
+          "repeatReminderWindow": {
+            "type": "string",
+            "enum": [
+              "24h",
+              "48h",
+              "72h",
+              "full"
+            ]
+          },
+          "costSharing": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "splitMode": {
+                    "type": "string",
+                    "enum": [
+                      "equal",
+                      "custom"
+                    ]
+                  },
+                  "members": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 80
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 80
+                        },
+                        "note": {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        "joinedDate": {
+                          "type": "string",
+                          "format": "date",
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "description": "Renewlet date-only string in YYYY-MM-DD format. No time or time zone.",
+                          "example": "2026-01-01"
+                        },
+                        "currency": {
+                          "type": "string",
+                          "pattern": "^[A-Z]{3}$"
+                        },
+                        "customAmount": {
+                          "type": "string",
+                          "pattern": "^(?:(?:0|[1-9][0-9]{0,8})(?:\\.[0-9]{0,5}[1-9])?|1000000000)$",
+                          "description": "Canonical Renewlet decimal money string. Non-negative, max 1000000000, up to 6 fractional digits, no scientific notation.",
+                          "example": "12.34"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "collectionReminder": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "reminderDays": {
+                        "type": "integer",
+                        "minimum": -1,
+                        "maximum": 3650
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "reminderDays"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "enabled",
+                  "splitMode",
+                  "members"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "extra": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "expectedUpdatedAt": {
+            "type": "string",
+            "maxLength": 64,
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
         "additionalProperties": false
       }
     }

@@ -743,11 +743,6 @@ msgid "settings.publicApiTokensLoadFailed"
 msgstr "Не удалось загрузить токены"
 
 #. js-lingui-explicit-id
-#: src/i18n/descriptors/settings.ts:448
-msgid "settings.publicApiCreateHelp"
-msgstr "Токены могут только читать списки подписок, сведения о них, сводки статусов и ближайшие платежи. Они не дают сеанса входа и права на запись."
-
-#. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:446
 msgid "settings.publicApiCreateName"
 msgstr "Название токена"
@@ -761,6 +756,11 @@ msgstr "Токен указан"
 #: src/i18n/descriptors/settings.ts:469
 msgid "settings.publicApiTokenCopied"
 msgstr "Токен скопирован"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/settings.ts:448
+msgid "settings.publicApiCreateHelp"
+msgstr "По умолчанию токены доступны только для чтения списков подписок, сведений о них, сводок статусов и ближайших платежей."
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:335
@@ -1157,6 +1157,11 @@ msgid "settings.passwordDialogTitle"
 msgstr "Сменить пароль"
 
 #. js-lingui-explicit-id
+#: src/i18n/descriptors/settings.ts:711
+msgid "settings.publicApiAllowWrite"
+msgstr "Разрешить создание и изменение подписок"
+
+#. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:349
 msgid "settings.calendarFeedTabGlobal"
 msgstr "Все продления"
@@ -1382,6 +1387,11 @@ msgid "settings.cloudBackupError.operation.listObjects"
 msgstr "Список объектов"
 
 #. js-lingui-explicit-id
+#: src/i18n/descriptors/settings.ts:437
+msgid "settings.publicApiHelp"
+msgstr "Создавайте API-токены для Telegram Bot, CLI, Shortcuts и других средств автоматизации."
+
+#. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:582
 msgid "settings.help.telegram"
 msgstr "Создать бота Telegram"
@@ -1394,17 +1404,12 @@ msgstr "Создать токен"
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:441
 msgid "settings.publicApiDialogDescription"
-msgstr "Создавайте, копируйте и удаляйте токены только для чтения."
+msgstr "Создавайте, копируйте и удаляйте API-токены."
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:458
 msgid "settings.publicApiTokenCreated"
 msgstr "Создан {time}"
-
-#. js-lingui-explicit-id
-#: src/i18n/descriptors/settings.ts:437
-msgid "settings.publicApiHelp"
-msgstr "Создавайте API-токены только для чтения, чтобы Telegram Bot, CLI, Shortcuts или платформы автоматизации могли запрашивать статус подписок."
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings-cloud-backup.ts:106
@@ -3899,7 +3904,7 @@ msgstr "Выполняется"
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:456
 msgid "settings.publicApiTokensEmpty"
-msgstr "API-токенов пока нет. Создайте токен и обращайтесь к публичному API только для чтения с заголовком Authorization Bearer."
+msgstr "API-токенов пока нет. Создайте токен и обращайтесь к публичному API с заголовком Authorization Bearer."
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:208

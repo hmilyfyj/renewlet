@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import { publicApiEndpointDocs } from "@renewlet/shared/public-api-docs";
 
 // parity 通过各运行面的测试进程导出真实 registry；Node CLI 不能直接加载 Worker 的 cloudflare:* 平台模块。
 
@@ -59,7 +60,11 @@ function parseWorkerRouteManifest(value: unknown): WorkerRouteManifestEntry[] {
 }
 
 const runtimeOnly = {
-  go: new Set(["GET /api/cron/notifications"]),
+  go: new Set([
+    "GET /api/cron/notifications",
+    ...publicApiEndpointDocs.filter((endpoint) => "dockerOnly" in endpoint)
+      .map((endpoint) => `${endpoint.method.toUpperCase()} ${endpoint.path}`),
+  ]),
   worker: new Set<string>(),
 };
 

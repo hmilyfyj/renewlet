@@ -124,6 +124,13 @@ func subscriptionRecordVersion(record *core.Record) string {
 	return record.GetDateTime("updated").Time().UTC().Truncate(time.Millisecond).Format(time.RFC3339Nano)
 }
 
+func subscriptionWriteResponse(e *core.RequestEvent, status int, record *core.Record, publicAPI bool) error {
+	if publicAPI {
+		return apiSuccessJSON(e, status, publicAPISubscriptionEnvelope{Subscription: publicAPISubscriptionFromRecord(record)})
+	}
+	return apiSuccessJSON(e, status, subscriptionResponse{Subscription: subscriptionAPIFromRecord(record)})
+}
+
 func subscriptionAPIFromRecord(record *core.Record) subscriptionDetailResponse {
 	out := subscriptionDetailResponse{
 		subscriptionCollectionItemResponse: subscriptionCollectionAPIFromRecord(record),

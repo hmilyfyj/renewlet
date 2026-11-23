@@ -4,7 +4,7 @@ import { toast } from "@/components/ui/sonner";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getDisplayErrorMessage } from "@/lib/display-error";
 import { copyTextToClipboard, type ClipboardCopyTarget } from "@/shared/browser/clipboard";
-import type { ApiToken } from "@/lib/api/schemas/public-api";
+import type { ApiToken, DockerApiTokenCreateRequest } from "@/lib/api/schemas/public-api";
 import { toSettingsReadState, type SettingsReadState } from "./settings-read-state";
 
 export interface SettingsPublicApiController {
@@ -12,7 +12,7 @@ export interface SettingsPublicApiController {
   createdPlainToken: string | null;
   isCreating: boolean;
   deletingTokenId: string | null;
-  createToken: (name: string) => Promise<boolean>;
+  createToken: (request: DockerApiTokenCreateRequest) => Promise<boolean>;
   copyPlainToken: (target?: ClipboardCopyTarget | null) => Promise<void>;
   dismissPlainToken: () => void;
   deleteToken: (id: string) => Promise<boolean>;
@@ -25,9 +25,9 @@ export function usePublicApiSettingsController(): SettingsPublicApiController {
   const deleteTokenMutation = useDeletePublicApiToken();
   const [createdPlainToken, setCreatedPlainToken] = useState<string | null>(null);
 
-  const createToken = useCallback(async (name: string) => {
+  const createToken = useCallback(async (request: DockerApiTokenCreateRequest) => {
     try {
-      const response = await createTokenMutation.mutateAsync(name);
+      const response = await createTokenMutation.mutateAsync(request);
       // plainToken 是一次性明文，离开这一段 UI 后只能重新创建；不要写入 settings 草稿或持久缓存。
       setCreatedPlainToken(response.plainToken);
       toast.success(t("settings.publicApiCreated"));

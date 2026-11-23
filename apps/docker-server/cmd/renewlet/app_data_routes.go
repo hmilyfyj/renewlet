@@ -225,11 +225,14 @@ func handleCustomConfigUpdate(app core.App, e *core.RequestEvent) error {
 	return apiSuccessJSON(e, http.StatusOK, customConfigResponse{Config: body.Config})
 }
 
-func handleSubscriptionCreate(app core.App, e *core.RequestEvent) error {
+func handleSubscriptionCreate(app core.App, e *core.RequestEvent, publicAPI bool) error {
 	locale := requestLocale(e.Request)
 	body, err := decodeStrictJSON[subscriptionWriteRequest](e.Request, locale)
 	if err != nil {
 		return e.BadRequestError(validationErrorMessage(locale, "common.invalidRequestBody", err), err)
+	}
+	if publicAPI && body.PublicHidden.Set {
+		return e.BadRequestError(serverText(locale, "common.invalidRequestParameters"), nil)
 	}
 	collection, err := app.FindCollectionByNameOrId("subscriptions")
 	if err != nil {
@@ -243,7 +246,7 @@ func handleSubscriptionCreate(app core.App, e *core.RequestEvent) error {
 	if err := app.Save(record); err != nil {
 		return e.BadRequestError(validationErrorMessage(locale, "common.invalidRequestBody", err), err)
 	}
-	return apiSuccessJSON(e, http.StatusCreated, subscriptionResponse{Subscription: subscriptionAPIFromRecord(record)})
+	return subscriptionWriteResponse(e, http.StatusCreated, record, publicAPI)
 }
 
 func handleSubscriptionDelete(app core.App, e *core.RequestEvent) error {

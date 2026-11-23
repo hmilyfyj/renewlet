@@ -1486,6 +1486,7 @@ export const MESSAGE_KEYS = [
   "settings.perMonth",
   "settings.pocketBaseAdmin",
   "settings.publicApi",
+  "settings.publicApiAllowWrite",
   "settings.publicApiCopyFailed",
   "settings.publicApiCopyFailedDescription",
   "settings.publicApiCopyToken",

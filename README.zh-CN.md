@@ -39,7 +39,7 @@ Renewlet 是一个会在续费前提醒你的自托管订阅账本。把订阅�
 - 录入和迁移：从截图、备忘录或表格生成可编辑草稿，确认后再导入；也可以导入导出 Renewlet 数据或迁入 Wallos 文件。
 - 日历和分享：把全部或单个订阅加入日历，或生成可隐藏金额的公开状态页。
 - 账号安全：使用身份验证器、恢复码或通行密钥，也可以为密码登录开启 Cloudflare Turnstile。
-- 自动化：通过只读 [Public API](docs/public-api.md) 接入 CLI、Shortcuts 和其他工具。
+- 自动化：通过 [Public API](docs/public-api.md) 接入 CLI、Shortcuts 和其他工具。Docker 版可为 Token 开启订阅新增和编辑权限。
 
 ## 快速部署
 
