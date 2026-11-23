@@ -15,7 +15,7 @@ var (
 	errSubscriptionResumeDates         = errors.New("SUBSCRIPTION_RESUME_DATES")
 )
 
-func handleSubscriptionUpdate(app core.App, e *core.RequestEvent) error {
+func handleSubscriptionUpdate(app core.App, e *core.RequestEvent, publicAPI bool) error {
 	locale := requestLocale(e.Request)
 	body, err := decodeStrictJSON[struct {
 		subscriptionWriteRequest
@@ -25,7 +25,7 @@ func handleSubscriptionUpdate(app core.App, e *core.RequestEvent) error {
 		return e.BadRequestError(validationErrorMessage(locale, "common.invalidRequestBody", err), err)
 	}
 	patch := body.subscriptionWriteRequest
-	if !patch.HasChanges() || (body.ExpectedUpdatedAt.Set && !patch.Status.Set) {
+	if !patch.HasChanges() || (body.ExpectedUpdatedAt.Set && !patch.Status.Set) || (publicAPI && patch.PublicHidden.Set) {
 		return e.BadRequestError(serverText(locale, "common.invalidRequestParameters"), nil)
 	}
 	withoutVisibility := patch
@@ -37,7 +37,7 @@ func handleSubscriptionUpdate(app core.App, e *core.RequestEvent) error {
 		}
 		return handleSinglePublicVisibilityUpdate(app, e, record, patch.PublicHidden)
 	}
-	var response subscriptionDetailResponse
+	var saved *core.Record
 
 	// 原始版本、归属和状态切换必须在同一事务内判断，否则旧页面会用完整表单覆盖刚刚暂停的记录。
 	err = app.RunInTransaction(func(tx core.App) error {
@@ -86,7 +86,7 @@ func handleSubscriptionUpdate(app core.App, e *core.RequestEvent) error {
 		if err := tx.SaveNoValidate(record); err != nil {
 			return err
 		}
-		response = subscriptionAPIFromRecord(record)
+		saved = record
 		return nil
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -104,5 +104,5 @@ func handleSubscriptionUpdate(app core.App, e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	return apiSuccessJSON(e, http.StatusOK, subscriptionResponse{Subscription: response})
+	return subscriptionWriteResponse(e, http.StatusOK, saved, publicAPI)
 }

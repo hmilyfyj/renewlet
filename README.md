@@ -39,7 +39,7 @@ Sign in with `demo@renewlet.local` / `renewlet-demo`. Data resets regularly; do 
 - Turn screenshots, notes, or tables into editable drafts, then review them before import. You can also import or export Renewlet data, or migrate from Wallos.
 - Add all or individual subscriptions to a calendar, or share a public status page with prices hidden when needed.
 - Secure the account with an authenticator, recovery codes, or passkeys, and optionally protect password login with Cloudflare Turnstile.
-- Connect CLI tools, Shortcuts, and other automation through the read-only [Public API](docs/public-api.md).
+- Connect CLI tools, Shortcuts, and other automation through the [Public API](docs/public-api.md). Docker tokens can optionally create and edit subscriptions.
 
 ## Docker Quick Start
 

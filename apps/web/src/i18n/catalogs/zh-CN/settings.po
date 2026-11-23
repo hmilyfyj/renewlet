@@ -743,11 +743,6 @@ msgid "settings.publicApiTokensLoadFailed"
 msgstr "Token 加载失败"
 
 #. js-lingui-explicit-id
-#: src/i18n/descriptors/settings.ts:448
-msgid "settings.publicApiCreateHelp"
-msgstr "Token 只允许读取订阅列表、详情、状态摘要和未来到期项；不会获得登录 session 或写入权限。"
-
-#. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:446
 msgid "settings.publicApiCreateName"
 msgstr "Token 名称"
@@ -761,6 +756,11 @@ msgstr "Token 已填写"
 #: src/i18n/descriptors/settings.ts:469
 msgid "settings.publicApiTokenCopied"
 msgstr "Token 已复制"
+
+#. js-lingui-explicit-id
+#: src/i18n/descriptors/settings.ts:448
+msgid "settings.publicApiCreateHelp"
+msgstr "Token 默认只读，可查询订阅列表、详情、状态摘要和未来到期项。"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:335
@@ -1157,6 +1157,11 @@ msgid "settings.passwordDialogTitle"
 msgstr "修改密码"
 
 #. js-lingui-explicit-id
+#: src/i18n/descriptors/settings.ts:711
+msgid "settings.publicApiAllowWrite"
+msgstr "允许写入订阅"
+
+#. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:349
 msgid "settings.calendarFeedTabGlobal"
 msgstr "全部续费"
@@ -1382,6 +1387,11 @@ msgid "settings.cloudBackupError.operation.listObjects"
 msgstr "列举对象"
 
 #. js-lingui-explicit-id
+#: src/i18n/descriptors/settings.ts:437
+msgid "settings.publicApiHelp"
+msgstr "创建 API Token，用于 Telegram Bot、CLI、Shortcuts 或其他自动化工具。"
+
+#. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:582
 msgid "settings.help.telegram"
 msgstr "创建 Telegram 机器人"
@@ -1394,17 +1404,12 @@ msgstr "创建 token"
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:441
 msgid "settings.publicApiDialogDescription"
-msgstr "创建、复制和删除只读 token。"
+msgstr "创建、复制和删除 API Token。"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:458
 msgid "settings.publicApiTokenCreated"
 msgstr "创建于 {time}"
-
-#. js-lingui-explicit-id
-#: src/i18n/descriptors/settings.ts:437
-msgid "settings.publicApiHelp"
-msgstr "创建只读 API Token，用于 Telegram Bot、CLI、Shortcuts 或自动化平台查询订阅状态。"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings-cloud-backup.ts:106
@@ -3899,7 +3904,7 @@ msgstr "运行中"
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:456
 msgid "settings.publicApiTokensEmpty"
-msgstr "还没有 API token。创建后可通过 Authorization Bearer 调用只读 Public API。"
+msgstr "还没有 API Token。创建后可通过 Authorization Bearer 调用 Public API。"
 
 #. js-lingui-explicit-id
 #: src/i18n/descriptors/settings.ts:208

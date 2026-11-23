@@ -1,12 +1,12 @@
 import { apiFetch } from "@/lib/api-client";
 import {
-  apiTokenCreateRequestSchema,
   apiTokenCreateResponseSchema,
   apiTokenDeleteResponseSchema,
   apiTokensListResponseSchema,
   type ApiToken,
-  type ApiTokenCreateRequest,
+  dockerApiTokenCreateRequestSchema,
   type ApiTokenCreateResponse,
+  type DockerApiTokenCreateRequest,
 } from "@/lib/api/schemas/public-api";
 
 /**
@@ -20,10 +20,10 @@ export const publicApiService = {
     return data.tokens;
   },
 
-  async createToken(body: ApiTokenCreateRequest): Promise<ApiTokenCreateResponse> {
+  async createToken(body: DockerApiTokenCreateRequest): Promise<ApiTokenCreateResponse> {
     return await apiFetch("/api/app/api-tokens", apiTokenCreateResponseSchema, {
       method: "POST",
-      body: JSON.stringify(apiTokenCreateRequestSchema.parse(body)),
+      body: JSON.stringify(dockerApiTokenCreateRequestSchema.parse(body)),
     });
   },
 

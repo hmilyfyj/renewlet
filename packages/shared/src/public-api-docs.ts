@@ -1,5 +1,6 @@
 import { z, type ZodType } from "zod";
 import { apiErrorResponseSchema } from "./schemas/errors";
+import { subscriptionCreateBodySchema, subscriptionUpdateBodySchema } from "./schemas/subscriptions";
 import {
   publicApiDueQuerySchema,
   publicApiDueResponseSchema,
@@ -11,7 +12,7 @@ import {
 } from "./schemas/public-api";
 
 export type PublicApiParameterLocation = "path" | "query";
-export type PublicApiMethod = "get";
+export type PublicApiMethod = "get" | "post" | "patch";
 
 export interface PublicApiParameterDoc {
   name: string;
@@ -29,6 +30,9 @@ export interface PublicApiEndpointDoc {
   operationId: string;
   summary: string;
   description: string;
+  dockerOnly?: true;
+  successStatus?: 201;
+  requestBody?: { schemaName: keyof typeof publicApiDocumentationSchemas; example: unknown };
   responseSchemaName: keyof typeof publicApiDocumentationSchemas;
   parameters?: readonly PublicApiParameterDoc[];
   exampleUrl: string;
@@ -48,6 +52,9 @@ export const publicApiDocumentationSchemas = {
   PublicApiMeResponse: publicApiMeResponseSchema,
   PublicApiSubscriptionsListResponse: publicApiSubscriptionsListResponseSchema,
   PublicApiSubscriptionResponse: publicApiSubscriptionResponseSchema,
+  PublicApiSubscriptionCreateBody: z.strictObject(subscriptionCreateBodySchema.shape).omit({ publicHidden: true })
+    .partial({ startDate: true, pinned: true, autoRenew: true }),
+  PublicApiSubscriptionUpdateBody: z.strictObject(subscriptionUpdateBodySchema.shape).omit({ publicHidden: true }),
   PublicApiStatusResponse: publicApiStatusResponseSchema,
   PublicApiDueResponse: publicApiDueResponseSchema,
 } as const satisfies Record<string, ZodType>;
@@ -78,6 +85,15 @@ const sampleSubscription = {
   updatedAt: "2026-08-01T00:00:00.000Z",
 };
 
+const subscriptionIdParameter = {
+  name: "id",
+  in: "path",
+  required: true,
+  description: "Subscription id from the list endpoint.",
+  schemaName: "PublicApiSubscriptionIdParam",
+  example: sampleSubscription.id,
+} as const satisfies PublicApiParameterDoc;
+
 // 这里是 Public API 文档的路由级事实源；字段结构仍由 shared Zod schema 生成，动态用户配置只保留 string 形状。
 export const publicApiEndpointDocs = [
   {
@@ -85,7 +101,7 @@ export const publicApiEndpointDocs = [
     path: "/api/public/v1/me",
     operationId: "getPublicApiMe",
     summary: "Inspect the current Public API token",
-    description: "Returns the read scope attached to the bearer token. It does not expose the token owner or token hash.",
+    description: "Returns the scopes attached to the bearer token. It does not expose the token owner or token hash.",
     responseSchemaName: "PublicApiMeResponse",
     exampleUrl: "/api/public/v1/me",
     successExample: { ok: true, data: { scopes: ["read"] } },
@@ -130,25 +146,60 @@ export const publicApiEndpointDocs = [
     errorStatuses: [400, 401],
   },
   {
+    method: "post",
+    path: "/api/public/v1/subscriptions",
+    operationId: "createPublicApiSubscription",
+    summary: "Create a subscription (Docker only)",
+    description: "Docker only. Requires a token created with Allow subscription writes (`subscriptions:write`). Creates a subscription for the token owner using the same validation as the web app.",
+    dockerOnly: true,
+    successStatus: 201,
+    requestBody: {
+      schemaName: "PublicApiSubscriptionCreateBody",
+      example: {
+        name: sampleSubscription.name,
+        price: sampleSubscription.price,
+        currency: sampleSubscription.currency,
+        billingCycle: sampleSubscription.billingCycle,
+        category: sampleSubscription.category,
+        status: sampleSubscription.status,
+        nextBillingDate: sampleSubscription.nextBillingDate,
+        autoCalculateNextBillingDate: false,
+        reminderDays: sampleSubscription.reminderDays,
+        repeatReminderEnabled: sampleSubscription.repeatReminderEnabled,
+        repeatReminderInterval: sampleSubscription.repeatReminderInterval,
+        repeatReminderWindow: sampleSubscription.repeatReminderWindow,
+      },
+    },
+    responseSchemaName: "PublicApiSubscriptionResponse",
+    exampleUrl: "/api/public/v1/subscriptions",
+    successExample: { ok: true, data: { subscription: { ...sampleSubscription, startDate: null, autoCalculateNextBillingDate: false } } },
+    errorStatuses: [400, 401, 403],
+  },
+  {
     method: "get",
     path: "/api/public/v1/subscriptions/{id}",
     operationId: "getPublicApiSubscription",
     summary: "Read one subscription",
     description: "Returns one owner-scoped subscription by id. Foreign or missing ids return the same not found shape.",
     responseSchemaName: "PublicApiSubscriptionResponse",
-    parameters: [
-      {
-        name: "id",
-        in: "path",
-        required: true,
-        description: "Subscription id from the list endpoint.",
-        schemaName: "PublicApiSubscriptionIdParam",
-        example: "sub_01HZY7YQ7EXAMPLE",
-      },
-    ],
+    parameters: [subscriptionIdParameter],
     exampleUrl: "/api/public/v1/subscriptions/sub_01HZY7YQ7EXAMPLE",
     successExample: { ok: true, data: { subscription: sampleSubscription } },
     errorStatuses: [401, 404],
+  },
+  {
+    method: "patch",
+    path: "/api/public/v1/subscriptions/{id}",
+    operationId: "updatePublicApiSubscription",
+    summary: "Edit a subscription (Docker only)",
+    description: "Docker only. Requires `subscriptions:write`. Send only the fields to change. To change `status`, include `expectedUpdatedAt` from the current subscription's `updatedAt`. Public visibility cannot be changed through this API.",
+    dockerOnly: true,
+    parameters: [subscriptionIdParameter],
+    requestBody: { schemaName: "PublicApiSubscriptionUpdateBody", example: { notes: "Managed by automation" } },
+    responseSchemaName: "PublicApiSubscriptionResponse",
+    exampleUrl: "/api/public/v1/subscriptions/sub_01HZY7YQ7EXAMPLE",
+    successExample: { ok: true, data: { subscription: { ...sampleSubscription, notes: "Managed by automation" } } },
+    errorStatuses: [400, 401, 403, 404, 409],
   },
   {
     method: "get",

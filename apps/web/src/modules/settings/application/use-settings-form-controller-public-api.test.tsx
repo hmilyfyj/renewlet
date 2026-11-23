@@ -20,10 +20,10 @@ describe("useSettingsFormController public API integrations", () => {
     expect(result.current.hasUnsavedChanges).toBe(false);
 
     await act(async () => {
-      await result.current.publicApi.createToken("Telegram Bot");
+      await result.current.publicApi.createToken({ name: "Telegram Bot" });
     });
 
-    expect(mocks.createPublicApiTokenMutateAsync).toHaveBeenCalledWith("Telegram Bot");
+    expect(mocks.createPublicApiTokenMutateAsync).toHaveBeenCalledWith({ name: "Telegram Bot" });
     expect(result.current.publicApi.createdPlainToken).toBe("rlt_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNO12");
     expect(result.current.hasUnsavedChanges).toBe(false);
     expect(mocks.toast.success).toHaveBeenCalledWith("API Token 已创建");

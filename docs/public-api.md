@@ -2,7 +2,9 @@
 
 # Renewlet Public API
 
-Renewlet Public API is read-only and scoped to the owner of the token. Create a token in Settings, then send it as a bearer token:
+Renewlet Public API is scoped to the owner of the token. Tokens are read-only by default. On Docker, select **Allow subscription writes** when creating a token to enable subscription creation and edits. Cloudflare remains read-only.
+
+Create a token in Settings, then send it as a bearer token:
 
 ```bash
 curl -H "Authorization: Bearer rlt_your_token" https://renewlet.example.com/api/public/v1/subscriptions
@@ -18,7 +20,7 @@ All JSON success responses use `{ "ok": true, "data": ... }`. Error responses us
 
 ### GET `/api/public/v1/me`
 
-Returns the read scope attached to the bearer token. It does not expose the token owner or token hash.
+Returns the scopes attached to the bearer token. It does not expose the token owner or token hash.
 
 Parameters:
 
@@ -101,6 +103,57 @@ Success response example:
 }
 ```
 
+### POST `/api/public/v1/subscriptions`
+
+Docker only. Requires a token created with Allow subscription writes (`subscriptions:write`). Creates a subscription for the token owner using the same validation as the web app.
+
+Parameters:
+
+None.
+
+Example:
+
+```bash
+curl -H "Authorization: Bearer rlt_your_token" -X POST -H "Content-Type: application/json" --data '{"name":"GitHub","price":"12","currency":"USD","billingCycle":"monthly","category":"developer_tools","status":"active","nextBillingDate":"2026-09-01","autoCalculateNextBillingDate":false,"reminderDays":3,"repeatReminderEnabled":false,"repeatReminderInterval":"1h","repeatReminderWindow":"72h"}' "https://renewlet.example.com/api/public/v1/subscriptions"
+```
+
+Success response example:
+
+```json
+{
+  "ok": true,
+  "data": {
+    "subscription": {
+      "id": "sub_01HZY7YQ7EXAMPLE",
+      "name": "GitHub",
+      "price": "12",
+      "currency": "USD",
+      "balance": "50.123456",
+      "balanceCurrency": "EUR",
+      "billingCycle": "monthly",
+      "category": "developer_tools",
+      "status": "active",
+      "pinned": false,
+      "publicHidden": false,
+      "startDate": null,
+      "nextBillingDate": "2026-09-01",
+      "autoRenew": false,
+      "autoCalculateNextBillingDate": false,
+      "tags": [
+        "dev"
+      ],
+      "reminderDays": 3,
+      "repeatReminderEnabled": false,
+      "repeatReminderInterval": "1h",
+      "repeatReminderWindow": "72h",
+      "extra": {},
+      "createdAt": "2026-08-01T00:00:00.000Z",
+      "updatedAt": "2026-08-01T00:00:00.000Z"
+    }
+  }
+}
+```
+
 ### GET `/api/public/v1/subscriptions/{id}`
 
 Returns one owner-scoped subscription by id. Foreign or missing ids return the same not found shape.
@@ -149,6 +202,60 @@ Success response example:
       "extra": {},
       "createdAt": "2026-08-01T00:00:00.000Z",
       "updatedAt": "2026-08-01T00:00:00.000Z"
+    }
+  }
+}
+```
+
+### PATCH `/api/public/v1/subscriptions/{id}`
+
+Docker only. Requires `subscriptions:write`. Send only the fields to change. To change `status`, include `expectedUpdatedAt` from the current subscription's `updatedAt`. Public visibility cannot be changed through this API.
+
+Parameters:
+
+| Name | In | Required | Description |
+| --- | --- | --- | --- |
+| `id` | `path` | yes | Subscription id from the list endpoint. |
+
+Example:
+
+```bash
+curl -H "Authorization: Bearer rlt_your_token" -X PATCH -H "Content-Type: application/json" --data '{"notes":"Managed by automation"}' "https://renewlet.example.com/api/public/v1/subscriptions/sub_01HZY7YQ7EXAMPLE"
+```
+
+Success response example:
+
+```json
+{
+  "ok": true,
+  "data": {
+    "subscription": {
+      "id": "sub_01HZY7YQ7EXAMPLE",
+      "name": "GitHub",
+      "price": "12",
+      "currency": "USD",
+      "balance": "50.123456",
+      "balanceCurrency": "EUR",
+      "billingCycle": "monthly",
+      "category": "developer_tools",
+      "status": "active",
+      "pinned": false,
+      "publicHidden": false,
+      "startDate": "2026-01-01",
+      "nextBillingDate": "2026-09-01",
+      "autoRenew": false,
+      "autoCalculateNextBillingDate": true,
+      "tags": [
+        "dev"
+      ],
+      "reminderDays": 3,
+      "repeatReminderEnabled": false,
+      "repeatReminderInterval": "1h",
+      "repeatReminderWindow": "72h",
+      "extra": {},
+      "createdAt": "2026-08-01T00:00:00.000Z",
+      "updatedAt": "2026-08-01T00:00:00.000Z",
+      "notes": "Managed by automation"
     }
   }
 }

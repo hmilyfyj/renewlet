@@ -25,12 +25,14 @@ const goRoutesPath = path.join(rootDir, "apps/docker-server/cmd/renewlet/routes.
 const workerRoutesPath = path.join(rootDir, "apps/worker/src/index.ts");
 const publicApiTag = "Public API";
 const publicApiMoneyPropertyNames = new Set(["price", "balance", "customAmount"]);
-const publicApiDateOnlyPropertyNames = new Set(["joinedDate"]);
+const publicApiDateOnlyPropertyNames = new Set(["joinedDate", "startDate", "nextBillingDate", "trialEndDate"]);
 const allowedEmptyComponentSchemaPaths = new Set([
   "components.schemas.PublicApiErrorResponse.properties.error.properties.details",
   "components.schemas.PublicApiSubscriptionsListResponse.properties.data.properties.subscriptions.items.properties.extra.additionalProperties",
   "components.schemas.PublicApiSubscriptionResponse.properties.data.properties.subscription.properties.extra.additionalProperties",
   "components.schemas.PublicApiDueResponse.properties.data.properties.items.items.properties.subscription.properties.extra.additionalProperties",
+  "components.schemas.PublicApiSubscriptionCreateBody.properties.extra.additionalProperties",
+  "components.schemas.PublicApiSubscriptionUpdateBody.properties.extra.additionalProperties",
 ]);
 // 这是 OpenAPI 投影，不是新的金额事实源；真实校验仍在 shared moneyStringSchema，避免文档层绕过 canonicalize。
 const moneyDecimalStringSchema = {
@@ -49,16 +51,20 @@ const dateOnlyStringSchema = {
 };
 
 const statusDescriptions = {
-  400: "Invalid query parameters.",
+  400: "Invalid request parameters or body.",
   401: "Missing, malformed, deleted, or unauthorized Public API token.",
+  403: "The token does not allow subscription writes.",
   404: "The requested resource does not exist for the token owner.",
+  409: "The subscription changed since the supplied version was read.",
   500: "Unexpected server error.",
 };
 
 const statusExamples = {
   400: { error: { code: "INVALID_QUERY", message: "Invalid request parameters" } },
   401: { error: { code: "UNAUTHORIZED", message: "Unauthorized" } },
+  403: { error: { code: "FORBIDDEN", message: "The token does not allow subscription writes" } },
   404: { error: { code: "NOT_FOUND", message: "Not found" } },
+  409: { error: { code: "SUBSCRIPTION_EDIT_CONFLICT", message: "Subscription changed" } },
   500: { error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
 };
 
@@ -111,7 +117,7 @@ function parameterSchema(parameter) {
 
 function responseFor(endpoint) {
   const responses = {
-    200: {
+    [endpoint.successStatus ?? 200]: {
       description: "Successful response.",
       content: {
         "application/json": {
@@ -142,6 +148,17 @@ function operationFor(endpoint) {
     summary: endpoint.summary,
     description: endpoint.description,
     security: [{ PublicApiBearer: [] }],
+    ...(endpoint.requestBody ? {
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: { $ref: `#/components/schemas/${endpoint.requestBody.schemaName}` },
+            example: endpoint.requestBody.example,
+          },
+        },
+      },
+    } : {}),
     parameters: (endpoint.parameters ?? []).map((parameter) => ({
       name: parameter.name,
       in: parameter.in,
@@ -168,7 +185,7 @@ function buildOpenApiDocument() {
       title: "Renewlet Public API",
       version: "1.0.0",
       description: [
-        "Read-only API for subscriptions, status summaries, and upcoming due items.",
+        "Read subscriptions, status summaries, and upcoming due items. Docker deployments also support opt-in subscription writes.",
         "All endpoints require an `Authorization: Bearer rlt_*` token created in Renewlet settings.",
       ].join(" "),
       license: {
@@ -182,7 +199,7 @@ function buildOpenApiDocument() {
         description: "Same-origin Renewlet deployment.",
       },
     ],
-    tags: [{ name: publicApiTag, description: "Read-only Renewlet Public API." }],
+    tags: [{ name: publicApiTag, description: "Renewlet Public API." }],
     paths,
     components: {
       securitySchemes: {
@@ -194,8 +211,11 @@ function buildOpenApiDocument() {
         },
       },
       schemas: Object.fromEntries(
-        ["PublicApiErrorResponse", ...publicApiEndpointDocs.map((endpoint) => endpoint.responseSchemaName)]
-          .map((name) => [name, schemaFor(name)]),
+        Array.from(new Set([
+          "PublicApiErrorResponse",
+          ...publicApiEndpointDocs.map((endpoint) => endpoint.responseSchemaName),
+          ...publicApiEndpointDocs.flatMap((endpoint) => endpoint.requestBody ? [endpoint.requestBody.schemaName] : []),
+        ]), (name) => [name, schemaFor(name)]),
       ),
     },
   };
@@ -242,8 +262,8 @@ function discoverWorkerPublicApiRoutes() {
     .filter((entry) => entry.includes(" /api/public/v1/") || entry.endsWith(" /api/public/v1/me"));
 }
 
-function compareRouteSets(label, actual) {
-  const expected = publicApiEndpointDocs.map(routeKey).sort();
+function compareRouteSets(label, actual, endpoints) {
+  const expected = endpoints.map(routeKey).sort();
   const sortedActual = [...new Set(actual)].sort();
   const missing = expected.filter((item) => !sortedActual.includes(item));
   const extra = sortedActual.filter((item) => !expected.includes(item));
@@ -258,8 +278,8 @@ function compareRouteSets(label, actual) {
 
 function checkRuntimeRoutes() {
   // Go 与 Worker 都能注册 Public API route；生成器必须同时看两边，不能让某个运行面悄悄成为唯一事实源。
-  compareRouteSets("Go", discoverGoPublicApiRoutes());
-  compareRouteSets("Worker", discoverWorkerPublicApiRoutes());
+  compareRouteSets("Go", discoverGoPublicApiRoutes(), publicApiEndpointDocs);
+  compareRouteSets("Worker", discoverWorkerPublicApiRoutes(), publicApiEndpointDocs.filter((endpoint) => !endpoint.dockerOnly));
 }
 
 function stableJson(value) {
@@ -281,7 +301,9 @@ function buildMarkdown() {
     "",
     "# Renewlet Public API",
     "",
-    "Renewlet Public API is read-only and scoped to the owner of the token. Create a token in Settings, then send it as a bearer token:",
+    "Renewlet Public API is scoped to the owner of the token. Tokens are read-only by default. On Docker, select **Allow subscription writes** when creating a token to enable subscription creation and edits. Cloudflare remains read-only.",
+    "",
+    "Create a token in Settings, then send it as a bearer token:",
     "",
     "```bash",
     "curl -H \"Authorization: Bearer rlt_your_token\" https://renewlet.example.com/api/public/v1/subscriptions",
@@ -309,7 +331,11 @@ function buildMarkdown() {
     lines.push("Example:");
     lines.push("");
     lines.push("```bash");
-    lines.push(`curl -H "Authorization: Bearer rlt_your_token" "https://renewlet.example.com${endpoint.exampleUrl}"`);
+    const authorization = 'curl -H "Authorization: Bearer rlt_your_token"';
+    const request = endpoint.requestBody
+      ? ` -X ${endpoint.method.toUpperCase()} -H "Content-Type: application/json" --data '${JSON.stringify(endpoint.requestBody.example)}'`
+      : "";
+    lines.push(`${authorization}${request} "https://renewlet.example.com${endpoint.exampleUrl}"`);
     lines.push("```");
     lines.push("");
     lines.push("Success response example:");
